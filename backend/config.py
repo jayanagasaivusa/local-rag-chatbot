@@ -22,7 +22,7 @@ CHROMA_DIR = Path(os.getenv("CHROMA_DIR", BASE_DIR / "chroma_db"))
 CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "rag_documents")
 
 # Ollama connection + model names.
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 OLLAMA_LLM_MODEL = os.getenv("OLLAMA_LLM_MODEL", "gemma4:12b")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
@@ -35,7 +35,7 @@ RETRIEVER_TOP_K = int(os.getenv("RETRIEVER_TOP_K", "4"))
 
 # CORS - the Vite dev server default origin.
 FRONTEND_ORIGINS = os.getenv(
-    "FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    "FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174"
 ).split(",")
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
