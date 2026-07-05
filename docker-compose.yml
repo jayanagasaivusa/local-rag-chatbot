@@ -25,14 +25,6 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      # This saves the AI models so they don't re-download every time
-      - ollama_data:/root/.ollama
-  
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
       - ollama_data:/root/.ollama
       - ./backend/setup_ollama.sh:/setup_ollama.sh
     entrypoint: ["/bin/sh", "/setup_ollama.sh"]
