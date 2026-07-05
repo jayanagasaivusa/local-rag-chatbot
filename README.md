@@ -34,6 +34,13 @@ rag-web app/
 
 ## Prerequisites
 
+### 🚀 Quick Start (Docker)
+The easiest way to run this application is using Docker Compose. Make sure Docker Desktop is running on your machine, then run this single command in your terminal:
+
+`docker compose up --build -d`
+
+Once the containers are built and running, open your browser and navigate to: **http://localhost:5174**
+
 1. **[Ollama](https://ollama.com)** installed and running locally.
 2. Pull the LLM and embedding models used by default:
 
@@ -76,7 +83,7 @@ cp .env.example .env              # adjust VITE_API_BASE_URL if needed
 npm run dev
 ```
 
-The app is now live at `http://localhost:5173`.
+The app is now live at `http://localhost:5174`.
 
 ## 3. Run both together
 
@@ -87,12 +94,12 @@ with a single command from the project root:
 ./start.sh
 ```
 
-This starts the backend on port `8000` and the frontend on port `5173`, and stops
+This starts the backend on port `8000` and the frontend on port `5174`, and stops
 both cleanly on `Ctrl+C`.
 
 ## Using the app
 
-1. Open `http://localhost:5173`.
+1. Open `http://localhost:5174`.
 2. Drag a PDF, Excel (`.xlsx`/`.xls`), or HTML file onto the upload zone in the
    sidebar (or click to browse). Wait for the "✅ Added N chunks" confirmation.
 3. Ask a question in the chat box. The backend retrieves the most relevant chunks
@@ -106,12 +113,12 @@ both cleanly on `Ctrl+C`.
 | `DATA_DIR` | `./data` | Where uploaded files are saved |
 | `CHROMA_DIR` | `./chroma_db` | Where the Chroma index is persisted |
 | `CHROMA_COLLECTION_NAME` | `rag_documents` | Chroma collection name |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_BASE_URL` | `http://ollama:11434` | Ollama server URL |
 | `OLLAMA_LLM_MODEL` | `gemma4:12b` | Chat/generation model |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `150` | Text splitter tuning |
 | `RETRIEVER_TOP_K` | `4` | Number of chunks retrieved per question |
-| `FRONTEND_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | CORS allow-list |
+| `FRONTEND_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5174` | CORS allow-list |
 
 ## Notes
 
