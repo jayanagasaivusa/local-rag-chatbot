@@ -28,14 +28,14 @@ services:
       # This saves the AI models so they don't re-download every time
       - ollama_data:/root/.ollama
   
-  ollama-pull:
-    image: ollama/ollama
-    depends_on:
-      - ollama
-    environment:
-      - OLLAMA_HOST=ollama:11434
-    entrypoint: /bin/sh
-    command: -c "sleep 10 && ollama pull nomic-embed-text && ollama pull gemma4:e4b"
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./backend/setup_ollama.sh:/setup_ollama.sh
+    entrypoint: ["/bin/sh", "/setup_ollama.sh"]
 
 volumes:
   ollama_data:
