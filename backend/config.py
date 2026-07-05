@@ -23,7 +23,8 @@ CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "rag_documents")
 
 # Ollama connection + model names.
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-OLLAMA_LLM_MODEL = os.getenv("OLLAMA_LLM_MODEL", "gemma4:e4b")
+# Change the model name
+OLLAMA_LLM_MODEL = os.getenv("OLLAMA_LLM_MODEL", "gemma4:12b")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
 # Text splitting.
