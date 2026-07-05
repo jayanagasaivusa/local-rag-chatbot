@@ -7,6 +7,8 @@ services:
     volumes:
       - ./backend:/app
       - ./data:/data
+    env_file:             # Add this line
+      - ./backend/.env    # And this to link your .env file
     depends_on:
       - ollama
 
