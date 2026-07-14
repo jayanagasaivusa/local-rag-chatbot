@@ -11,6 +11,8 @@ import pandas as pd
 from langchain_community.document_loaders import BSHTMLLoader, PyPDFLoader
 from langchain_core.documents import Document
 
+
+
 SUPPORTED_EXTENSIONS = {".pdf", ".xlsx", ".xls", ".html", ".htm"}
 
 
@@ -42,9 +44,11 @@ def _load_excel(path: Path) -> list[Document]:
 
 def _load_pdf(path: Path) -> list[Document]:
     loader = PyPDFLoader(str(path))
-    docs = loader.load()
-    for doc in docs:
+    docs = []
+    # Use lazy_load to process page by page, preventing memory spikes
+    for doc in loader.lazy_load():
         doc.metadata["source"] = path.name
+        docs.append(doc)
     return docs
 
 

@@ -40,6 +40,7 @@ def split_documents(documents: list[Document]) -> list[Document]:
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
         length_function=len,
+        separators=["\n\n", "\n", " ", ""]  # Add this line
     )
     return splitter.split_documents(documents)
 
@@ -51,7 +52,10 @@ def add_documents(documents: list[Document]) -> int:
         return 0
 
     vectorstore = get_vectorstore()
-    vectorstore.add_documents(chunks)
+    batch_size = 32
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i : i + batch_size]
+        vectorstore.add_documents(batch)
     return len(chunks)
 
 

@@ -29,10 +29,10 @@ OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
 # Text splitting.
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
 
 # Retrieval.
-RETRIEVER_TOP_K = int(os.getenv("RETRIEVER_TOP_K", "4"))
+RETRIEVER_TOP_K = int(os.getenv("RETRIEVER_TOP_K", "10"))
 
 # CORS - the Vite dev server default origin.
 FRONTEND_ORIGINS = os.getenv(

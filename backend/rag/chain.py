@@ -5,15 +5,20 @@ answer. Implemented with LangChain Expression Language (LCEL) so each
 stage (retrieve -> format -> prompt -> generate) is explicit and testable.
 """
 from functools import lru_cache
+import logging
 
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_ollama import ChatOllama
+from langchain.retrievers.multi_query import MultiQueryRetriever
 
 from config import OLLAMA_BASE_URL, OLLAMA_LLM_MODEL, RETRIEVER_TOP_K
 from rag.vectorstore import get_vectorstore
+
+# This lets you see the generated queries in your terminal!
+logging.getLogger("langchain.retrievers.multi_query").setLevel(logging.INFO) 
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant that answers questions using only the "
@@ -45,8 +50,23 @@ def get_llm() -> ChatOllama:
 @lru_cache(maxsize=1)
 def build_rag_chain():
     """Returns an LCEL chain: question (str) -> {"answer": str, "docs": [Document]}."""
-    retriever = get_vectorstore().as_retriever(search_kwargs={"k": RETRIEVER_TOP_K})
     llm = get_llm()
+
+    # 1. First, define the base MMR retriever inside the function
+    base_retriever = get_vectorstore().as_retriever(
+        search_type="mmr",
+        search_kwargs={
+            "k": RETRIEVER_TOP_K, 
+            "fetch_k": 30,       
+            "lambda_mult": 0.5   
+        }
+    )
+
+    # 2. Second, wrap it in the MultiQueryRetriever so it intercepts the question first
+    retriever = MultiQueryRetriever.from_llm(
+        retriever=base_retriever,
+        llm=llm  
+    )
 
     generation_step = (
         {
@@ -58,6 +78,7 @@ def build_rag_chain():
         | StrOutputParser()
     )
 
+    # 3. Use our newly wrapped 'retriever' here to pull across multiple queries/documents
     return RunnableParallel(docs=retriever, question=RunnablePassthrough()) | RunnableParallel(
         answer=generation_step,
         docs=lambda x: x["docs"],
