@@ -1,16 +1,107 @@
-// Thin wrapper around the FastAPI backend. Keeping all fetch/error-handling
-// logic here means the components never need to know about URLs or response
-// shapes directly.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Thin wrapper around the FastAPI backend, built on a shared axios instance.
+// A request interceptor attaches the JWT (from localStorage) to every call,
+// and a response interceptor logs the user out on 401s.
+import axios from 'axios';
 
-async function parseErrorMessage(response) {
-  try {
-    const data = await response.json();
-    return data.detail || data.message || `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const TOKEN_STORAGE_KEY = 'rag_access_token';
+
+export const apiClient = axios.create({ baseURL: API_BASE_URL });
+
+export function getStoredToken() {
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+export function setStoredToken(token) {
+  if (token) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
   }
 }
+
+apiClient.interceptors.request.use((config) => {
+  const token = getStoredToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Registered by AuthContext so a 401 anywhere can trigger a clean logout
+// (clears the stored token + redirects to /login) without every call site
+// needing to know about auth.
+let onUnauthorized = () => {};
+export function registerUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      onUnauthorized();
+    }
+    return Promise.reject(error);
+  },
+);
+
+function extractErrorMessage(error) {
+  const detail = error.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+  return error.message || 'Something went wrong.';
+}
+
+// --- Auth --------------------------------------------------------------
+
+export async function registerUser(email, password) {
+  try {
+    const { data } = await apiClient.post('/register', { email, password });
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+export async function loginUser(email, password) {
+  try {
+    const { data } = await apiClient.post('/login', { email, password });
+    return data; // { access_token, token_type }
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+// --- Chat sessions -------------------------------------------------------
+
+export async function listSessions() {
+  try {
+    const { data } = await apiClient.get('/sessions');
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+export async function getSessionMessages(sessionId) {
+  try {
+    const { data } = await apiClient.get(`/sessions/${sessionId}/messages`);
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+export async function deleteSession(sessionId) {
+  try {
+    await apiClient.delete(`/sessions/${sessionId}`);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+// --- Documents / chat ----------------------------------------------------
 
 /**
  * Uploads a single file to the /upload endpoint for ingestion into Chroma.
@@ -20,36 +111,29 @@ async function parseErrorMessage(response) {
 export async function uploadFile(file) {
   const formData = new FormData();
   formData.append('file', file);
-
-  const response = await fetch(`${API_BASE_URL}/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+  try {
+    const { data } = await apiClient.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
   }
-
-  return response.json();
 }
 
 /**
  * Sends a chat message to the /chat endpoint and returns the AI response.
  * @param {string} message
- * @returns {Promise<{response: string, sources: Array<{source: string, snippet: string}>}>}
+ * @param {string|null} sessionId
+ * @returns {Promise<{response: string, sources: string[], session_id: string}>}
  */
-export async function sendChatMessage(message) {
-  const response = await fetch(`${API_BASE_URL}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+export async function sendChatMessage(message, sessionId) {
+  try {
+    const { data } = await apiClient.post('/chat', { message, session_id: sessionId });
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
   }
-
-  return response.json();
 }
 
 /**
@@ -57,11 +141,12 @@ export async function sendChatMessage(message) {
  * @returns {Promise<{documents: string[]}>}
  */
 export async function listDocuments() {
-  const response = await fetch(`${API_BASE_URL}/documents`);
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+  try {
+    const { data } = await apiClient.get('/documents');
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
   }
-  return response.json();
 }
 
 export { API_BASE_URL };

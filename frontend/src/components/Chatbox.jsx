@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import ChatMessage from './ChatMessage';
-import { sendChatMessage } from '../api';
+import { getSessionMessages, sendChatMessage } from '../api';
 
 let nextId = 1;
 const makeId = () => nextId++;
@@ -26,10 +26,20 @@ function ThinkingBubble() {
   );
 }
 
-export default function Chatbox() {
+function fromServerMessage(msg) {
+  return { id: makeId(), role: msg.role, content: msg.content };
+}
+
+/**
+ * @param {string|null} sessionId - active thread, or null for a fresh/unsaved chat.
+ * @param {(sessionId: string) => void} onSessionCreated - called once the
+ *   backend assigns a session id to a brand-new chat (i.e. after the first message).
+ */
+export default function Chatbox({ sessionId, onSessionCreated }) {
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const scrollAnchorRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -37,9 +47,40 @@ export default function Chatbox() {
     scrollAnchorRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
+  // Reload the transcript whenever the active session changes (including
+  // switching to "no session" for a brand-new chat).
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!sessionId) {
+      setMessages([WELCOME_MESSAGE]);
+      return;
+    }
+
+    setIsLoadingHistory(true);
+    getSessionMessages(sessionId)
+      .then((history) => {
+        if (cancelled) return;
+        setMessages(history.length > 0 ? history.map(fromServerMessage) : [WELCOME_MESSAGE]);
+      })
+      .catch(() => {
+        if (!cancelled) setMessages([WELCOME_MESSAGE]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingHistory(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
   async function runPrompt(prompt) {
     try {
-      const data = await sendChatMessage(prompt);
+      const data = await sendChatMessage(prompt, sessionId);
+      if (!sessionId && data.session_id) {
+        onSessionCreated?.(data.session_id);
+      }
       return {
         role: 'assistant',
         content: data.response,
@@ -108,6 +149,9 @@ export default function Chatbox() {
 
       <div className="scrollbar-thin flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-5 px-6 py-8">
+          {isLoadingHistory && (
+            <p className="text-center text-xs text-slate-400">Loading conversation...</p>
+          )}
           {messages.map((msg) => (
             <ChatMessage
               key={msg.id}

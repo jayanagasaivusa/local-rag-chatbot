@@ -12,16 +12,19 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from auth import get_current_user
 from config import DATA_DIR, FRONTEND_ORIGINS, OLLAMA_LLM_MODEL
+from database import get_db, init_db
+from models import ChatSession, Message, MessageRole, User
 from rag.chain import answer_question
 from rag.loaders import UnsupportedFileTypeError, SUPPORTED_EXTENSIONS, load_documents
 from rag.vectorstore import add_documents, list_ingested_sources
-
-
+from routers import auth_routes, sessions as sessions_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rag-backend")
@@ -36,14 +39,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_routes.router)
+app.include_router(sessions_router.router)
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str | None = None
 
 
 class ChatResponse(BaseModel):
     response: str
     sources: list[str]
+    session_id: str
 
 
 class UploadResponse(BaseModel):
@@ -111,12 +124,42 @@ async def upload_file(file: UploadFile = File(...)):
     )
 
 
+def _get_or_create_session(db: Session, user: User, session_id: str | None, first_message: str) -> ChatSession:
+    if session_id:
+        session = (
+            db.query(ChatSession)
+            .filter(ChatSession.id == session_id, ChatSession.user_id == user.id)
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Chat session not found.")
+        return session
+
+    # No session_id supplied -> start a new thread, titled from the first message.
+    title = first_message[:60] + ("..." if len(first_message) > 60 else "")
+    session = ChatSession(user_id=user.id, title=title)
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """Runs retrieval against Chroma and generates an answer via Ollama."""
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Runs retrieval against Chroma, generates an answer via Ollama, and
+    persists both the user's prompt and the AI's response to the DB."""
     message = request.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    session = _get_or_create_session(db, current_user, request.session_id, message)
+
+    db.add(Message(session_id=session.id, role=MessageRole.user, content=message))
+    db.commit()
 
     try:
         result = answer_question(message)
@@ -130,4 +173,7 @@ async def chat(request: ChatRequest):
             ),
         ) from exc
 
-    return ChatResponse(**result)
+    db.add(Message(session_id=session.id, role=MessageRole.assistant, content=result.get("response", "")))
+    db.commit()
+
+    return ChatResponse(**result, session_id=session.id)

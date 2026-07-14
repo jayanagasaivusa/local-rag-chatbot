@@ -41,3 +41,10 @@ FRONTEND_ORIGINS = os.getenv(
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Authentication Settings
+JWT_SECRET_KEY = "super-secret-key-change-this-in-production"  
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # Tokens last for 7 days
+# Database Settings
+DATABASE_URL = "sqlite:///./local_rag.db"
