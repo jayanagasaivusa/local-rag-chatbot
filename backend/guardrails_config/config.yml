@@ -1,0 +1,18 @@
+# config.yml
+models:
+  - type: main
+    engine: ollama
+    model: gemma4:12b # Ensure this matches your model name
+
+rails:
+  input:
+    flows:
+      - mask sensitive data on input
+  output:
+    flows:
+      - mask sensitive data on output
+
+# Define the action for masking
+actions:
+  mask_sensitive_data:
+    path: actions.py # We will use a simple inline script or define this

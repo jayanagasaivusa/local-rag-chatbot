@@ -1,0 +1,9 @@
+# flows.co
+
+# Flow to mask input data
+flow mask sensitive data on input
+  $user_message = execute MaskSensitiveData(text=$last_user_message)
+
+# Flow to mask output data
+flow mask sensitive data on output
+  $bot_message = execute MaskSensitiveData(text=$last_bot_message)
