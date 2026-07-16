@@ -1,130 +1,156 @@
 # Local RAG Chatbot
 
-A full-stack, fully local Retrieval-Augmented Generation chatbot. Upload PDF, Excel,
-or HTML documents; they're chunked, embedded, and stored in ChromaDB; then chat with
-a local Ollama model that answers using retrieved context from your documents.
+A secure, full-stack, entirely local AI enterprise architecture featuring user authentication, protected chat histories, NVIDIA safety guardrails, deep document intelligence, and a pluggable autonomous agent.
 
-Everything runs on your machine — no data leaves your computer.
+## Core Features
+* **🔐 User Authentication:** Secure signup and login flow powered by JWT tokens, managing private sessions per user.
+* **📜 Persistent Chat History:** SQLite-backed SQL database logging historical chat interaction threads across sessions.
+* **🛡️ NVIDIA NeMo Guardrails:** Advanced topical, safety, and security guardrail configurations managing input/output moderation boundaries.
+* **📂 Multi-Format RAG Ingestion:** Industrial loaders digesting PDF, Excel, HTML, and raw Text files into a local ChromaDB vector store.
+* **🤖 Autonomous MCP Agent:** A LangGraph React Agent linked to a custom FastMCP server carrying out web-scraping and real-time environment actions.
 
-## Architecture
+Everything runs locally on your machine — zero external API dependency, absolute data privacy.
 
-```
-rag-web app/
-├── backend/                 FastAPI + LangChain + Chroma + Ollama
-│   ├── main.py               API entrypoint (/upload, /chat, /documents, /health)
-│   ├── config.py             Env-driven configuration
-│   ├── rag/
-│   │   ├── loaders.py         PDF / Excel / HTML -> LangChain Documents
-│   │   ├── vectorstore.py     Chroma singleton, chunking, ingestion
-│   │   └── chain.py           LCEL retrieval-augmented generation chain
-│   ├── data/                  Uploaded source files (gitignored)
-│   ├── chroma_db/              Persisted vector index (gitignored)
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/                 React (Vite) + Tailwind CSS
+---
+
+## Workspace Architecture
+
+```text
+vignatrix-ragone/
+├── backend/                    FastAPI + SQLAlchemy Core + LangChain + Ollama
+│   ├── guardrails_config/      NVIDIA NeMo Guardrails safety policies and rails configuration files
+│   ├── rag/                    Retrieval workflows (loaders, vector store, generation chain)
+│   ├── routers/                Modular API endpoints (auth, chat, documents routing)
+│   ├── auth.py                 JWT tokens handling, hashing, and security middleware
+│   ├── database.py             SQLAlchemy DB instance & session manager
+│   ├── models.py               Database tables definitions (Users, Chat History logs)
+│   ├── schemas.py              Pydantic data validation contracts 
+│   ├── main.py                 API startup core anchoring routes & lifecycles
+│   ├── config.py               Environment properties mapper
+│   ├── local_rag.db            Active SQLite database tracking users & chat states (gitignored)
+│   └── requirements.txt
+├── data/                       Centralized Multi-Format Raw Knowledge base
+│   ├── excel/                  Excel datasheets (.xlsx, .xls)
+│   ├── html/                   Web page raw DOM files
+│   ├── pdf/                    Text/Scan document formats
+│   ├── text_files/             Raw layout (.txt) materials
+│   └── vector_store/           Persisted local ChromaDB collection directories
+├── frontend/                   React (Vite) + Tailwind CSS SPA Client
 │   └── src/
-│       ├── App.jsx             Layout: sidebar + chat window
-│       ├── api.js              Fetch wrapper for the backend API
-│       └── components/
-│           ├── FileUpload.jsx   Drag-and-drop upload zone
-│           ├── Chatbox.jsx      Message list + input + "Thinking..." state
-│           └── ChatMessage.jsx  User/AI chat bubble
-└── start.sh                  Convenience script to run both servers at once
+│       ├── components/         FileUpload, Chatbox, and Dynamic ChatMessage bubbles
+│       ├── App.jsx             Layout orchestration handling Login view vs Dashboard view
+│       └── api.js              Centralized HTTP request client carrying Auth Bearer tokens
+├── mcp-weather-server/         Autonomous Agent Framework Core
+│   ├── app.py                  Gradio Interface hosting the multi-tool Agent app
+│   ├── weather.py              FastMCP implementation hosting `get_weather` & `read_website` tools
+│   └── test_agent.py           CLI verification script running LangGraph agent tasks
+├── docker-compose.yml          Multi-container infrastructure composer
+├── start.sh                    Convenience orchestrator spinning up the complete environment
+└── README.md                   Project blueprint manual
+
 ```
+
+---
 
 ## Prerequisites
 
-### 🚀 Quick Start (Docker)
-The easiest way to run this application is using Docker Compose. Make sure Docker Desktop is running on your machine, then run this single command in your terminal:
+1. **[Ollama Engine](https://ollama.com)** actively operational locally.
+2. Pull the required LLM generation and embedding assets:
+```bash
+ollama pull gemma4:12b
+ollama pull nomic-embed-text
 
-`docker compose up --build -d`
+```
 
-Once the containers are built and running, open your browser and navigate to: **http://localhost:5174**
 
-1. **[Ollama](https://ollama.com)** installed and running locally.
-2. Pull the LLM and embedding models used by default:
+3. **Python 3.11+** environment and **Node.js 18+** environment tools.
 
-   ```bash
-   ollama pull gemma4:12b
-   ollama pull nomic-embed-text
-   ```
+---
 
-   (You can swap either model via the backend `.env` file — see below.)
-3. **Python 3.11+** and **Node.js 18+**.
+## Quick Launch Environments
 
-## 1. Backend setup (FastAPI)
+### Option A: 🚀 Infrastructure Automation (Docker)
+
+Ensure Docker Desktop is operational on the host system, then execute:
+
+```bash
+docker compose up --build -d
+
+```
+
+Access the global user web interface at: **http://localhost:5174**
+
+### Option B: 🛠️ Direct Manual Initialization
+
+#### 1. Backend API & Relational Database
 
 ```bash
 cd backend
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
-
 pip install -r requirements.txt
-
-cp .env.example .env              # adjust model names / ports if needed
-```
-
-Run the API server:
-
-```bash
+cp .env.example .env              # Tune ports or custom parameters if necessary
 uvicorn main:app --reload --port 8000
+
 ```
 
-The API is now live at `http://localhost:8000` (interactive docs at `/docs`).
+#### 2. Frontend Login & Interface Client
 
-## 2. Frontend setup (React + Vite)
-
-In a **second terminal**:
+In a second terminal context:
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env              # adjust VITE_API_BASE_URL if needed
+cp .env.example .env
 npm run dev
+
 ```
 
-The app is now live at `http://localhost:5174`.
+#### 3. Pluggable MCP Multi-Tool Dashboard
 
-## 3. Run both together
-
-Once both `backend/venv` and `frontend/node_modules` exist, you can start everything
-with a single command from the project root:
+In a third terminal context:
 
 ```bash
-./start.sh
+cd mcp-weather-server
+python3 -m venv .venv
+source .venv/bin/activate         # Windows: .venv\Scripts\activate
+pip install gradio langchain-ollama langchain-mcp-adapters langgraph fastmcp mcp beautifulsoup4 httpx
+python app.py
+
 ```
 
-This starts the backend on port `8000` and the frontend on port `5174`, and stops
-both cleanly on `Ctrl+C`.
+Interact visually with the agent via: **http://localhost:7860**
 
-## Using the app
+---
 
-1. Open `http://localhost:5174`.
-2. Drag a PDF, Excel (`.xlsx`/`.xls`), or HTML file onto the upload zone in the
-   sidebar (or click to browse). Wait for the "✅ Added N chunks" confirmation.
-3. Ask a question in the chat box. The backend retrieves the most relevant chunks
-   from Chroma and asks your local Ollama model to answer using that context.
-   Responses include the source filename(s) used.
+## Running Applications Guide
 
-## Configuration reference (`backend/.env`)
+### 1. Main RAG Client Interface (`localhost:5174`)
 
-| Variable | Default | Description |
-|---|---|---|
-| `DATA_DIR` | `./data` | Where uploaded files are saved |
-| `CHROMA_DIR` | `./chroma_db` | Where the Chroma index is persisted |
-| `CHROMA_COLLECTION_NAME` | `rag_documents` | Chroma collection name |
-| `OLLAMA_BASE_URL` | `http://ollama:11434` | Ollama server URL |
-| `OLLAMA_LLM_MODEL` | `gemma4:12b` | Chat/generation model |
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `150` | Text splitter tuning |
-| `RETRIEVER_TOP_K` | `4` | Number of chunks retrieved per question |
-| `FRONTEND_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5174` | CORS allow-list |
+* **Authentication Portal:** Create a new user profile or log in with verified credentials. The frontend manages session protection via state-stored JWT keys.
+* **Data Ingestion:** Route raw tracking assets directly to the ingestion system. The backend analyzes the files, applies safety checkpoints via `guardrails_config` (NVIDIA NeMo configurations), parses text strings, embeds vectors, and locks chunks securely under `data/vector_store`.
+* **Contextual Conversations:** Chat queries map dynamically against historical data strings inside `local_rag.db`, pulling relevant fragments into local Ollama prompts to formulate verified citations.
 
-## Notes
+### 2. Autonomous Agent Studio (`localhost:7860`)
 
-- The vector store persists across restarts (it's just files under `backend/chroma_db`).
-  Delete that folder to reset your knowledge base.
-- To add support for another file type, add a loader function in
-  `backend/rag/loaders.py` and register its extension in `SUPPORTED_EXTENSIONS`.
-- This was verified end-to-end locally: uploading a PDF and an Excel file, then
-  asking questions answered correctly from each source with correct citations.
+* Instruct the agent to perform actions requiring live real-time analysis:
+> *"Look at the headline on https://thehackernews.com/ and check if that vulnerability introduces threats today based on Guntur weather or physical factors."*
+
+
+* The system parses arguments dynamically via the adapter framework, coordinates tool execution through standard I/O pipelines, performs network fetching, parses HTML objects safely, and returns clean results directly to the display window.
+
+---
+
+## Environment Property Management (`backend/.env`)
+
+| Property Key | Default Value | Usage Scope |
+| --- | --- | --- |
+| `SECRET_KEY` | *Auto-Generated String* | Cryptographic salt initializing security JWT hashes |
+| `DATABASE_URL` | `sqlite:///./local_rag.db` | System path anchoring users, tokens, and history schemas |
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Bridge locator addressing host machine LLM engines from isolated engines |
+| `OLLAMA_LLM_MODEL` | `gemma4:12b` | Default logic and text production model asset |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Matrix model encoding tokens into mathematical vectors |
+
+```
+
+```
