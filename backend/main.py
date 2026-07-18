@@ -26,6 +26,10 @@ from rag.loaders import UnsupportedFileTypeError, SUPPORTED_EXTENSIONS, load_doc
 from rag.vectorstore import add_documents, list_ingested_sources
 from routers import auth_routes, sessions as sessions_router
 
+from fastapi.responses import StreamingResponse
+from pdf_generator import generate_pdf_report
+from pydantic import BaseModel
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rag-backend")
 
@@ -91,6 +95,7 @@ async def upload_file(file: UploadFile = File(...)):
     if extension not in SUPPORTED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported file type.")
 
+    # Saves the file securely with a unique ID
     safe_name = f"{uuid.uuid4().hex[:8]}_{Path(file.filename).name}"
     destination = DATA_DIR / safe_name
 
@@ -100,6 +105,18 @@ async def upload_file(file: UploadFile = File(...)):
     finally:
         file.file.close()
 
+    # --- THE BYPASS UPGRADE ---
+    if extension in ['.xlsx', '.xls', '.csv']:
+        # Return immediately! Do NOT chunk spreadsheets into the Vector Database.
+        # This keeps the file pure for the Pandas Data Agent.
+        return UploadResponse(
+            filename=file.filename,
+            chunks_added=0,
+            message=f"'{file.filename}' saved securely for the Data Analyst Agent.",
+        )
+    # --------------------------
+
+    # For PDFs and TXT files, proceed with standard vector chunking
     documents = load_documents(destination)
     chunks_added = add_documents(documents)
     
@@ -122,14 +139,14 @@ def _get_or_create_session(db, user, session_id, first_message):
     db.refresh(session)
     return session
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Mask input
-    message = mask_sensitive_data(request.message.strip())
+    message = request.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
@@ -138,15 +155,35 @@ async def chat(
     db.commit()
 
     try:
-        # Generate answer
-        result = answer_question(message)
-        # Mask output
-        result["response"] = mask_sensitive_data(result.get("response", ""))
+        # 1. Execute your RAG Chain to get factual context & citations
+        rag_result = answer_question(message)
+        final_text = rag_result.get("response", "")
+        sources = rag_result.get("sources", [])
+
+        # 2. TEMPORARILY BYPASSING NE MOGUARDRAILS FOR FAST TESTING
+        # safe_response = await rails.generate_async(messages=[...])
+        
     except Exception as exc:
         logger.exception("Failed to answer question")
         raise HTTPException(status_code=500, detail=str(exc))
 
-    db.add(Message(session_id=session.id, role=MessageRole.assistant, content=result["response"]))
+    db.add(Message(session_id=session.id, role=MessageRole.assistant, content=final_text))
     db.commit()
 
-    return ChatResponse(**result, session_id=session.id)
+    return ChatResponse(response=final_text, sources=sources, session_id=session.id)
+
+
+
+class ExportRequest(BaseModel):
+    title: str
+    content: str
+    source: str
+
+@app.post("/export-pdf")
+async def export_pdf(request: ExportRequest):
+    pdf_buffer = generate_pdf_report(request.title, request.content, request.source)
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=report.pdf"}
+    )

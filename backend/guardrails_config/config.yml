@@ -2,7 +2,9 @@
 models:
   - type: main
     engine: ollama
-    model: gemma4:12b # Ensure this matches your model name
+    model: gemma4:12b 
+    parameters:
+      base_url: "http://host.docker.internal:11434/v1"
 
 rails:
   input:

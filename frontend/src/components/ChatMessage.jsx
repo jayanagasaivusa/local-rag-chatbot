@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { Check, Copy, RotateCcw, Volume2, VolumeX, FileDown } from 'lucide-react';
 
 function ThinkingDots() {
   return (
@@ -11,11 +11,6 @@ function ThinkingDots() {
   );
 }
 
-/**
- * Small ghost icon button used in the AI message action bar. Kept as a
- * local component so copy/listen/restart all share identical sizing,
- * hover, and focus treatment.
- */
 function ActionButton({ onClick, label, active, children }) {
   return (
     <button
@@ -45,18 +40,16 @@ export default function ChatMessage({
   const isUser = role === 'user';
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const utteranceRef = useRef(null);
 
-  // If the browser navigates away or the message unmounts mid-speech, make
-  // sure we don't leave a dangling utterance talking over a new one.
   useEffect(() => {
     return () => {
       if (isSpeaking) {
         window.speechSynthesis?.cancel();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isSpeaking]);
 
   const handleCopy = async () => {
     try {
@@ -64,19 +57,17 @@ export default function ChatMessage({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard permission denied or unavailable — fail silently, no UI needed.
+      // Fail silently
     }
   };
 
   const handleListen = () => {
     if (!('speechSynthesis' in window)) return;
-
     if (isSpeaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
       return;
     }
-
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(content);
     utterance.onend = () => setIsSpeaking(false);
@@ -84,6 +75,34 @@ export default function ChatMessage({
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
     setIsSpeaking(true);
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch('http://localhost:8000/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            title: "Financial Analysis Report", 
+            content: content, 
+            source: sources ? sources.join(", ") : "None" 
+        })
+      });
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "analysis_report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error("Failed to download PDF:", err);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   if (isUser) {
@@ -117,16 +136,14 @@ export default function ChatMessage({
               <p className="mb-1 text-xs font-medium text-slate-400">Sources</p>
               <ul className="space-y-0.5 text-xs text-slate-500">
                 {sources.map((src, idx) => (
-                  <li key={idx} className="truncate">
-                    📄 {src}
-                  </li>
+                  <li key={idx} className="truncate">📄 {src}</li>
                 ))}
               </ul>
             </div>
           )}
         </div>
 
-        {!isRegenerating && (
+        {!isRegenerating && !isError && (
           <div className="flex items-center gap-0.5 pl-1">
             <ActionButton onClick={handleCopy} label={copied ? 'Copied' : 'Copy'} active={copied}>
               {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -138,6 +155,10 @@ export default function ChatMessage({
               active={isSpeaking}
             >
               {isSpeaking ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </ActionButton>
+
+            <ActionButton onClick={handleDownload} label="Download PDF">
+              <FileDown size={16} className={isDownloading ? "animate-pulse" : ""} />
             </ActionButton>
 
             {onRestart && (
