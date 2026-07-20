@@ -47,4 +47,4 @@ JWT_SECRET_KEY = "super-secret-key-change-this-in-production"
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # Tokens last for 7 days
 # Database Settings
-DATABASE_URL = "sqlite:///./local_rag.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:password123@postgres:5432/rag_db")

@@ -3,11 +3,15 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    extra_hosts:                                   # <--- ADD THIS
+      - "host.docker.internal:host-gateway"        # <--- ADD THIS
     volumes:
       - ./backend:/app
       - ./data:/data
     env_file:
       - ./backend/.env 
+    depends_on:
+      - postgres
 
   frontend:
     build: ./frontend
@@ -18,3 +22,21 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+  
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    container_name: rag_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: rag_db
+    ports:
+      - "5432:5432"
+    command: ["postgres", "-c", "shared_preload_libraries=vector"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
